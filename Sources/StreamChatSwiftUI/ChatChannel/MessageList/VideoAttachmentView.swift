@@ -140,12 +140,17 @@ struct VideoAttachmentContentView: View {
         utils.videoPreviewLoader
     }
 
+    private var fileCDN: FileCDN {
+        utils.fileCDN
+    }
+
     let attachment: ChatMessageVideoAttachment
     let author: ChatUser
     let width: CGFloat
     var ratio: CGFloat = 0.75
     var cornerRadius: CGFloat = 24
 
+    @State var adjustedUrl: URL?
     @State var previewImage: UIImage?
     @State var error: Error?
     @State var fullScreenShown = false
@@ -189,10 +194,18 @@ struct VideoAttachmentContentView: View {
             )
         }
         .onAppear {
-            videoPreviewLoader.loadPreviewForVideo(at: attachment.videoURL) { result in
+            fileCDN.adjustedURL(for: attachment.videoURL) { result in
                 switch result {
-                case let .success(image):
-                    self.previewImage = image
+                case let .success(url):
+                    self.adjustedUrl = url
+                    videoPreviewLoader.loadPreviewForVideo(at: url) { result in
+                        switch result {
+                        case let .success(image):
+                            self.previewImage = image
+                        case let .failure(error):
+                            self.error = error
+                        }
+                    }
                 case let .failure(error):
                     self.error = error
                 }

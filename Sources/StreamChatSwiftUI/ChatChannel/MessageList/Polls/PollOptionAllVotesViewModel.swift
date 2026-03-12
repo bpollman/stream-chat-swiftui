@@ -12,11 +12,12 @@ class PollOptionAllVotesViewModel: ObservableObject, PollVoteListControllerDeleg
 
     @Published var poll: Poll
     @Published var pollVotes = [PollVote]()
+    @Published var hasLoadedAllVotes = false
     @Published var errorShown = false
-    
+
     private var cancellables = Set<AnyCancellable>()
     private(set) var animateChanges = false
-    var loadingVotes = false
+    private var loadingVotes = false
 
     init(poll: Poll, option: PollOption, controller: PollVoteListController? = nil) {
         self.poll = poll
@@ -24,12 +25,12 @@ class PollOptionAllVotesViewModel: ObservableObject, PollVoteListControllerDeleg
         let query = PollVoteListQuery(
             pollId: poll.id,
             optionId: option.id,
-            pagination: .init(pageSize: 25)
+            pagination: .init(pageSize: 10)
         )
         self.controller = controller ?? InjectedValues[\.chatClient].pollVoteListController(query: query)
         self.controller.delegate = self
         refresh()
-        
+
         // No animation for initial load
         $pollVotes
             .dropFirst()
@@ -37,23 +38,21 @@ class PollOptionAllVotesViewModel: ObservableObject, PollVoteListControllerDeleg
             .assignWeakly(to: \.animateChanges, on: self)
             .store(in: &cancellables)
     }
-    
+
     func refresh() {
         controller.synchronize { [weak self] error in
             guard let self else { return }
-            self.pollVotes = Array(self.controller.votes)
+            self.syncState()
             if error != nil {
                 self.errorShown = true
             }
+            self.loadVotes()
         }
     }
-    
-    func onAppear(vote: PollVote) {
-        guard let index = pollVotes.firstIndex(where: { $0 == vote }) else {
-            return
-        }
 
-        guard index > pollVotes.count - 10 && pollVotes.count > 25 else {
+    func onAppear(vote: PollVote) {
+        guard let index = pollVotes.firstIndex(where: { $0 == vote }),
+              index > pollVotes.count - 10 else {
             return
         }
 
@@ -66,15 +65,21 @@ class PollOptionAllVotesViewModel: ObservableObject, PollVoteListControllerDeleg
     ) {
         if animateChanges {
             withAnimation {
-                self.pollVotes = Array(self.controller.votes)
+                syncState()
             }
         } else {
-            pollVotes = Array(controller.votes)
+            syncState()
         }
     }
 
     func controller(_ controller: PollVoteListController, didUpdatePoll poll: Poll) {
         self.poll = poll
+    }
+
+    /// Single source of truth: sync published state from the controller.
+    private func syncState() {
+        pollVotes = Array(controller.votes)
+        hasLoadedAllVotes = controller.hasLoadedAllVotes
     }
 
     private func loadVotes() {
@@ -87,6 +92,7 @@ class PollOptionAllVotesViewModel: ObservableObject, PollVoteListControllerDeleg
         controller.loadMoreVotes { [weak self] error in
             guard let self else { return }
             self.loadingVotes = false
+            self.syncState()
             if error != nil {
                 self.errorShown = true
             }

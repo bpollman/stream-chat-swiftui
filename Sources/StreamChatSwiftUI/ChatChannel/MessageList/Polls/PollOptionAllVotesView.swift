@@ -30,10 +30,6 @@ struct PollOptionAllVotesView<Factory: ViewFactory>: View {
                     votes: viewModel.pollVotes,
                     onVoteAppear: viewModel.onAppear(vote:)
                 )
-                if !viewModel.hasLoadedAllVotes {
-                    ProgressView()
-                        .padding()
-                }
             }
         }
         .alertBanner(

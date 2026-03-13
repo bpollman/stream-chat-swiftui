@@ -12,12 +12,11 @@ class PollOptionAllVotesViewModel: ObservableObject, PollVoteListControllerDeleg
 
     @Published var poll: Poll
     @Published var pollVotes = [PollVote]()
-    @Published var hasLoadedAllVotes = false
     @Published var errorShown = false
 
     private var cancellables = Set<AnyCancellable>()
     private(set) var animateChanges = false
-    private var loadingVotes = false
+    var loadingVotes = false
 
     init(poll: Poll, option: PollOption, controller: PollVoteListController? = nil) {
         self.poll = poll
@@ -42,7 +41,7 @@ class PollOptionAllVotesViewModel: ObservableObject, PollVoteListControllerDeleg
     func refresh() {
         controller.synchronize { [weak self] error in
             guard let self else { return }
-            self.syncState()
+            self.pollVotes = Array(self.controller.votes)
             if error != nil {
                 self.errorShown = true
             }
@@ -65,21 +64,15 @@ class PollOptionAllVotesViewModel: ObservableObject, PollVoteListControllerDeleg
     ) {
         if animateChanges {
             withAnimation {
-                syncState()
+                self.pollVotes = Array(self.controller.votes)
             }
         } else {
-            syncState()
+            pollVotes = Array(controller.votes)
         }
     }
 
     func controller(_ controller: PollVoteListController, didUpdatePoll poll: Poll) {
         self.poll = poll
-    }
-
-    /// Single source of truth: sync published state from the controller.
-    private func syncState() {
-        pollVotes = Array(controller.votes)
-        hasLoadedAllVotes = controller.hasLoadedAllVotes
     }
 
     private func loadVotes() {
@@ -92,7 +85,7 @@ class PollOptionAllVotesViewModel: ObservableObject, PollVoteListControllerDeleg
         controller.loadMoreVotes { [weak self] error in
             guard let self else { return }
             self.loadingVotes = false
-            self.syncState()
+            self.pollVotes = Array(self.controller.votes)
             if error != nil {
                 self.errorShown = true
             }
